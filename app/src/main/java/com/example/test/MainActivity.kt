@@ -70,3 +70,4 @@ class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
 }
 
 //your mum
+//xarop is old
