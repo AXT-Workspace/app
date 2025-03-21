@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.dp
 import com.aldebaran.qi.sdk.`object`.conversation.ListenResult
 import com.aldebaran.qi.sdk.`object`.humanawareness.HumanAwareness
 import com.example.test.ui.theme.TestTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 
 class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
@@ -39,7 +41,7 @@ class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent {
+        setContent { //simple UI with "Listen" button and Speech-To-Text display
             TestTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Column(
@@ -49,25 +51,41 @@ class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
                         Text(text = recognizedText.value, modifier = Modifier.padding(16.dp))
                         Button(onClick = { startListening() }) {
                             Text("Listen")
-                        }
-                    }
-                }
-            }
-        }
+                        } } } } }
         QiSDK.register(this, this)
     }
 
     private fun startListening() {
-        qiContext?.let { context ->
-            CoroutineScope(Dispatchers.IO).launch {
-                val listen: Listen = ListenBuilder.with(context).build()
-                val result: ListenResult = listen.run()
-                recognizedText.value = result.heardPhrase.text
-            }
+        CoroutineScope(Dispatchers.IO).launch {
+            while (qiContext == null) {
+                println("QiContext is null, cannot start listening.")
+                delay(100)
         }
-    }
 
+        println("Clicked on the button! I'm listening...") //Log
+
+            qiContext?.let { context ->
+                try {
+                    val listen: Listen = ListenBuilder.with(context).build()
+                        val result: ListenResult = withContext(Dispatchers.Default) {
+                        listen.run()
+                    }
+
+
+                    withContext(Dispatchers.Main) {
+                        recognizedText.value = result.heardPhrase.text
+                        println("Is this what you said? ${result.heardPhrase.text}")
+                    }
+
+                }catch (e: Exception) {
+                    println("Error during listening: ${e.message}")
+                } } } }
+
+
+    //Pepper says "Hello there!" upon recognising a human
     override fun onRobotFocusGained(qiContext: QiContext?) {
+        this.qiContext = qiContext
+
         val say: Say = SayBuilder.with(qiContext)
             .withText("Hello there!")
             .build()
@@ -77,13 +95,11 @@ class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
             humanAwareness.addOnEngagedHumanChangedListener { human ->
                 human?.let {
                     say.run()
-                }
-            }
-        }
-    }
+                } } } }
+
 
     override fun onRobotFocusLost() {
-        qiContext = null
+        TODO("Not yet implemented")
     }
 
     override fun onRobotFocusRefused(reason: String?) {
