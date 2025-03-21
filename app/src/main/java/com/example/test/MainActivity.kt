@@ -27,7 +27,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.unit.dp
+import com.aldebaran.qi.sdk.builder.PhraseSetBuilder
 import com.aldebaran.qi.sdk.`object`.conversation.ListenResult
+import com.aldebaran.qi.sdk.`object`.conversation.Phrase
+import com.aldebaran.qi.sdk.`object`.conversation.PhraseSet
 import com.aldebaran.qi.sdk.`object`.humanawareness.HumanAwareness
 import com.example.test.ui.theme.TestTheme
 import kotlinx.coroutines.delay
@@ -66,9 +69,13 @@ class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
 
             qiContext?.let { context ->
                 try {
-                    val listen: Listen = ListenBuilder.with(context).build()
-                        val result: ListenResult = withContext(Dispatchers.Default) {
+                    val phraseSet: PhraseSet = PhraseSetBuilder.with(qiContext).withTexts("What's up Pepper?", "How are you?", "Old McDonald had a farm").build()
+
+                    val listen: Listen = ListenBuilder.with(qiContext).withPhraseSet(phraseSet).build()
+
+                    val result: ListenResult = withContext(Dispatchers.Default) {
                         listen.run()
+
                     }
 
 
