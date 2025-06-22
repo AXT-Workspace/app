@@ -1,3 +1,4 @@
 package com.example.test.gemini
 
-data class GeminiRequest(val prompt: String)
+data class GeminiRequest(
+    val message: String)

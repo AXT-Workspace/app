@@ -1,11 +1,5 @@
 package com.example.test
 
-//import androidx.compose.ui.tooling.preview.Preview
-//import android.speech.SpeechRecognizer
-//import androidx.compose.runtime.*
-//import com.example.test.gemini.GeminiResponse
-//import com.aldebaran.qi.sdk.`object`.conversation.Phrase
-//import androidx.compose.runtime.Composable
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,31 +21,37 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.aldebaran.qi.sdk.QiRobot
 import com.aldebaran.qi.sdk.builder.PhraseSetBuilder
 import com.aldebaran.qi.sdk.`object`.conversation.ListenResult
 import com.aldebaran.qi.sdk.`object`.conversation.PhraseSet
 import com.aldebaran.qi.sdk.`object`.humanawareness.HumanAwareness
+import com.aldebaran.qi.sdk.`object`.locale.Language
+import com.aldebaran.qi.sdk.`object`.locale.Locale
+import com.aldebaran.qi.sdk.`object`.locale.Region
 import com.example.test.GoogleAPI.SpeechToText
-import com.example.test.gemini.GeminiManager
+import com.example.test.gemini.GeminiApiService
+import com.example.test.gemini.GeminiRequest
+import com.example.test.gemini.GeminiResponse
+import com.example.test.gemini.RetrofitClient
 import com.example.test.humaninteraction.HumanInteractionManager
 import com.example.test.ui.theme.TestTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-
 class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
     private var qiContext: QiContext? = null
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
     private var recognizedText = mutableStateOf("Waiting for input")
     private lateinit var speechToText: SpeechToText
     private lateinit var humanInteractionManager: HumanInteractionManager
-    private lateinit var geminiManager: GeminiManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,30 +60,47 @@ class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
         speechToText = SpeechToText(this) { result ->
             recognizedText.value = result
             println("Google STT Result: $result")
-            triggerGestureBasedOnSpeech(result) }
+
+            coroutineScope.launch {
+                delay(2000)
+                geminiResponse(result)
+            } }
 
 
-        setContent { //simple UI with "Listen" button and Speech-To-Text display
+        setContent { //simple UI with "Pepper Listen" button and Speech-To-Text display
             TestTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Column(
-                        modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                        modifier = Modifier.padding(innerPadding).fillMaxSize().padding(24.dp),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(text = recognizedText.value, modifier = Modifier.padding(16.dp))
-                        Button(onClick = { startListening() }) {
-                            Text("Listen")
+                        Text(text = recognizedText.value,
+                            fontSize = 20.sp,
+                            modifier = Modifier.padding(32.dp))
+
+                        Button(onClick = { startListening() },
+                            modifier = Modifier.fillMaxWidth(0.8f).height(60.dp)) {
+                            Text("Pepper Listen", fontSize = 18.sp)
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Button(onClick = { speechToText.startListening() }) {
-                            Icon(Icons.Default.Star, contentDescription = "SpeechToText")
+
+                        Spacer(modifier = Modifier.width(24.dp))
+
+                        Button(onClick = { speechToText.startListening() },
+                            modifier = Modifier.fillMaxWidth(0.8f).height(60.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.FavoriteBorder,
+                                contentDescription = "SpeechToText",
+                                modifier = Modifier.size(30.dp))
+
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("Speak", fontSize = 18.sp)
                     } } } } }
         QiSDK.register(this, this)
     }
 
     private fun startListening() {
-        CoroutineScope(Dispatchers.IO).launch {
+        coroutineScope.launch {
             while (qiContext == null) run {
                 println("QiContext is null, cannot start listening.")
                 return@launch
@@ -105,18 +122,10 @@ class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
                     println("Is this what you said? $heardPhrase")
                     delay(500)
 
-                    geminiResponse(heardPhrase)
-
-                    recognizedText.value = heardPhrase
-
-                    withContext(Dispatchers.Default) {
-                        recognizedText.value = result.heardPhrase.text
-                        println("line 86!\n")
-
                         when (heardPhrase) {
                             "What's up Pepper" -> {
                                 val say: Say = SayBuilder.with(qiContext)
-                                    .withText("What's cooking, good looking")
+                                    .withText("Hallo wie gehts")
                                     .build()
                                 say.run() }
 
@@ -138,7 +147,7 @@ class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
                                     .withText("Sorry, I didn't catch that")
                                     .build()
                                 say.run() }
-                        } }
+                        }
 
 
                 } catch (e: Exception) {
@@ -147,54 +156,81 @@ class MainActivity : ComponentActivity(), RobotLifecycleCallbacks {
 
 
 
-    private fun triggerGestureBasedOnSpeech(heardPhrase: String) {
-        CoroutineScope(Dispatchers.IO).launch {
-        if (heardPhrase.isBlank()) {
-            println("Error: Heard phrase is null or blank.")
-            return@launch
-        }
-
-        when (heardPhrase.lowercase()) {
-            "rock" -> { humanInteractionManager.makeRockGesture() }
-            "scissors" -> { humanInteractionManager.makeScissorsGesture() }
-            "paper" -> { humanInteractionManager.makePaperGesture() }
-        }
-    } }
-
     private fun geminiResponse(input: String) {
-        CoroutineScope(Dispatchers.Main).launch {
-            val response = geminiManager.getGeminiResponse(input)
-            geminiManager.makePepperSpeak(response)
+        println("geminiResponse called: $input")
+
+        val shortInput = "Please keep the answer short and in a few sentences. Respond in American English and avoid British spelling. $input"
+
+        coroutineScope.launch {
+            try {
+                println("Sending request to Gemini API...")
+
+                val response = RetrofitClient.instance.sendMessage(GeminiRequest(shortInput))
+                println("Response from Gemini: ${response.response}")
+
+                withContext(Dispatchers.Main) {
+                    makePepperSpeak(response.response)
+                }
+
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    makePepperSpeak("Error processing your request.")
+
+                }
+                println("Error calling Gemini API: ${e.message}")
+            }
         }
     }
 
-    //Pepper says "Hello there!" upon recognising a human
-    override fun onRobotFocusGained(qiContext: QiContext?) {
-        this.qiContext = qiContext
+    private fun makePepperSpeak (text: String) {
+            println("makePepperSpeak called with: $text")
 
-        geminiManager = GeminiManager(qiContext)
-
-        val say: Say = SayBuilder.with(qiContext)
-            .withText("Hello there!")
-            .build()
-
-        qiContext?.let { context ->
-
-            val robot: QiRobot = humanInteractionManager.robot
-            humanInteractionManager = HumanInteractionManager(robot)
-
-            val humanAwareness: HumanAwareness = context.humanAwareness
-            humanAwareness.addOnEngagedHumanChangedListener { human ->
-                human?.let {
+            coroutineScope.launch {
+                qiContext?.let {
+                    println("Pepper is about to drop some bars...")
+                    val locale: Locale = Locale(Language.ENGLISH, Region.UNITED_STATES)
+                    val say = SayBuilder.with(it).withText(text).withLocale(locale).build()
                     say.run()
-                } } } }
+                }
+            }
+        }
 
 
-    override fun onRobotFocusLost() {
-        TODO("Not yet implemented")
+        //Pepper says "Hello there!" upon recognising a human
+        override fun onRobotFocusGained(qiContext: QiContext?) {
+            println("onFocusRobotGained called! qiContext assigned")
+            this.qiContext = qiContext
+
+            try {
+            val say: Say = SayBuilder.with(qiContext)
+                .withText("Hello there!")
+                .build()
+
+            qiContext?.let { context ->
+
+                humanInteractionManager = HumanInteractionManager()
+                humanInteractionManager.getHumanInfo(context)
+
+                val humanAwareness: HumanAwareness = context.humanAwareness
+                humanAwareness.addOnEngagedHumanChangedListener { human ->
+                    human?.let {
+                        say.run()
+                    }
+                }
+            }
+        }
+            catch (e: Exception) {
+                println("Error onRobotFocusGained: ${e.message}")
+
+            }
+        }
+
+        override fun onRobotFocusLost() {
+            speechToText.destroy()
+            qiContext = null
+        }
+
+        override fun onRobotFocusRefused(reason: String?) {
+            TODO("Not yet implemented")
+        }
     }
-
-    override fun onRobotFocusRefused(reason: String?) {
-        TODO("Not yet implemented")
-    }
-}
